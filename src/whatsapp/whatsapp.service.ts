@@ -1,24 +1,58 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
-import { VerifyWebhookDto } from './dto/verify-webhook.dto';
-import { envs } from 'src/config';
-import { HandleIncomingDto } from './dto/handle-incoming';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { SendTextMessageDto } from './dto/send-text-message.dto';
+import { MESSAGING_PRODUCT } from './enums/whatsapp.enum';
+import { lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class WhatsappService {
-  verifyWebhook(verifyWebhookDto: VerifyWebhookDto) {
-    const { mode, verifyToken, challenge } = verifyWebhookDto;
+  constructor(private readonly httpService: HttpService) {}
 
-    if (
-      mode === 'subscribe' &&
-      verifyToken === envs.whatsappCloudApi.webhookVerifyToken
-    ) {
-      return challenge;
-    }
+  /**
+   * Send a text message via WhatsApp Cloud API
+   */
+  async sendTextMessage(sendTextMessageDto: SendTextMessageDto) {
+    const payload = {
+      messaging_product: MESSAGING_PRODUCT.WHATSAPP,
+      to: sendTextMessageDto.to,
+      type: 'text',
+      text: {
+        body: sendTextMessageDto.body,
+        preview_url: sendTextMessageDto?.previewUrl,
+      },
+    };
 
-    throw new ForbiddenException();
+    return this.sendToMeta(payload);
   }
 
-  handleIncoming(handleIncomingDto: HandleIncomingDto) {
-    console.log('Received WhatsApp incoming payload:', handleIncomingDto);
+  // TODO: Send media message
+  async sendMediaMessage() {}
+
+  // TODO: Send location message
+  async sendLocationMessage() {}
+
+  // TODO: Send interactive buttons
+  async sendInteractiveButtons() {}
+
+  // TODO: Mark message as read
+  async markMessageAsRead() {}
+
+  private async sendToMeta(payload: any) {
+    try {
+      const { data } = await lastValueFrom(
+        this.httpService.post('messages', payload),
+      );
+      return data;
+    } catch (error) {
+      const metaError = error.response?.data?.error;
+      const message = metaError
+        ? `Meta Error (${metaError.code}): ${metaError.message} - ${metaError.error_user_msg || ''}`
+        : error.message;
+
+      // TODO: Cambiar este log por un logger adecuado
+      console.error('Error sending request to Meta:', message);
+
+      throw new InternalServerErrorException(message);
+    }
   }
 }

@@ -3,17 +3,19 @@ import * as joi from 'joi';
 
 interface EnvVars {
   PORT: number;
-  WEBHOOK_VERIFY_TOKEN: string;
-  WHATSAPP_API_TOKEN: string;
-  BUSINESS_PHONE_NUMBER_ID: string;
+  WHATSAPP_API_VERSION: string;
+  WHATSAPP_API_ACCESS_TOKEN: string;
+  WHATSAPP_API_PHONE_NUMBER_ID: string;
+  WHATSAPP_API_VERIFY_TOKEN: string;
 }
 
 const envsSchema = joi
   .object({
     PORT: joi.number().required(),
-    WEBHOOK_VERIFY_TOKEN: joi.string().required(),
-    WHATSAPP_API_TOKEN: joi.string().required(),
-    BUSINESS_PHONE_NUMBER_ID: joi.string().required(),
+    WHATSAPP_API_VERSION: joi.string().required(),
+    WHATSAPP_API_ACCESS_TOKEN: joi.string().required(),
+    WHATSAPP_API_PHONE_NUMBER_ID: joi.string().required(),
+    WHATSAPP_API_VERIFY_TOKEN: joi.string().required(),
   })
   .unknown(true);
 
@@ -28,8 +30,9 @@ const envVars: EnvVars = value;
 export const envs = Object.freeze({
   port: envVars.PORT,
   whatsappCloudApi: {
-    webhookVerifyToken: envVars.WEBHOOK_VERIFY_TOKEN,
-    apiToken: envVars.WHATSAPP_API_TOKEN,
-    businessPhoneNumberId: envVars.BUSINESS_PHONE_NUMBER_ID,
+    version: envVars.WHATSAPP_API_VERSION,
+    accessToken: envVars.WHATSAPP_API_ACCESS_TOKEN,
+    phoneNumberId: envVars.WHATSAPP_API_PHONE_NUMBER_ID,
+    verifyToken: envVars.WHATSAPP_API_VERIFY_TOKEN,
   },
 });
