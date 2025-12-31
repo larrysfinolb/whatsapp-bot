@@ -1,4 +1,4 @@
-name: Build & Push to ECR
+name: Build & Deploy WhatsApp Bot
 
 on:
   release:
@@ -9,36 +9,101 @@ env:
   ECR_REPOSITORY: magenta/whatsapp-bot
 
 jobs:
+  # ------------------------------------------------------------------------------
+  # JOB 1: BUILD AND PUSH IMAGE
+  # ------------------------------------------------------------------------------
   build-and-push:
-    name: Build and Push Docker Image
+    name: 🐳 Build & Push Docker Image
     runs-on: ubuntu-latest
+    # Export registry URL for the next job
+    outputs:
+      registry: ${{ steps.login-ecr.outputs.registry }}
 
     steps:
-      - name: Checkout Code
+      # 1. Checkout source code
+      - name: 📥 Checkout Code
         uses: actions/checkout@v6
 
-      - name: Configure AWS Credentials
+      # 2. Configure AWS Credentials
+      - name: 🔑 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v5.1.1
         with:
           aws-region: ${{ env.AWS_REGION }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-      - name: Login to Amazon ECR
+      # 3. Login to ECR
+      - name: 🔓 Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image to Amazon ECR
+      # 4. Build the image
+      - name: 🏗️ Build Docker Image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          echo "🏗️ Building Docker image..."
+          echo "🏗️ Building image with tag: $IMAGE_TAG..."
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
 
-          echo "⬆️ Pushing to AWS ECR..."
+      # 5. Push the image
+      - name: ⬆️ Push to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          echo "🚀 Pushing specific tag: $IMAGE_TAG..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          echo "🚀 Pushing 'latest' tag..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-          echo "✅ Success! Image pushed to ECR."
+          echo "✅ Build and Push completed successfully!"
+
+  # ------------------------------------------------------------------------------
+  # JOB 2: DEPLOY TO EC2 SERVER (SELF-HOSTED)
+  # ------------------------------------------------------------------------------
+  deploy-to-ec2:
+    name: 🚀 Deploy on Server
+    needs: build-and-push
+    runs-on: self-hosted
+
+    steps:
+      # 1. Configure AWS Credentials
+      - name: 🔑 Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5.1.1
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # 2. Login to ECR
+      - name: 🔓 Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 3. Pull & Run (Agregué el nombre que faltaba)
+      - name: ⬇️ Pull & Restart Container
+        env:
+          ECR_REGISTRY: ${{ needs.build-and-push.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+        run: |
+          echo "⬇️ Pulling latest image..."
+          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          echo "🛑 Stopping old container..."
+          docker stop whatsapp-bot || true
+          docker rm whatsapp-bot || true
+
+          echo "🚀 Starting new container..."
+          docker run -d \
+            --name whatsapp-bot \
+            --restart always \
+            -p 3000:3000 \
+            $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          echo "🧹 Cleaning up..."
+          docker image prune -f
+
+          echo "✅ Deployment completed successfully!"
