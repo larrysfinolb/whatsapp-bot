@@ -18,11 +18,17 @@ jobs:
     # Export registry URL for the next job
     outputs:
       registry: ${{ steps.login-ecr.outputs.registry }}
+      image_tag: ${{ steps.set-tag.outputs.tag }}
 
     steps:
       # 1. Checkout source code
       - name: 📥 Checkout Code
         uses: actions/checkout@v6
+
+      - name: 🏷️ Set Image Tag
+        id: set-tag
+        run: |
+          echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
 
       # 2. Configure AWS Credentials
       - name: 🔑 Configure AWS Credentials
@@ -38,28 +44,24 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       # 4. Build the image
-      - name: 🏗️ Build Docker Image
+      - name: 🏗️ Build & Push Docker Image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          echo "🏗️ Building image with tag: $IMAGE_TAG..."
+          echo "🏗️ Building docker images..."
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
-
-      # 5. Push the image
-      - name: ⬆️ Push to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.event.release.tag_name }}
-        run: |
-          echo "🚀 Pushing specific tag: $IMAGE_TAG..."
+          echo "🚀 Pushing docker images..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-          echo "🚀 Pushing 'latest' tag..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-          echo "✅ Build and Push completed successfully!"
+      # 5. Push the image
+      - name: ⬆️ Upload Compose File
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-files
+          path: docker-compose.prod.yml
 
   # ------------------------------------------------------------------------------
   # JOB 2: DEPLOY TO EC2 SERVER (SELF-HOSTED)
@@ -70,6 +72,11 @@ jobs:
     runs-on: self-hosted
 
     steps:
+      - name: 📥 Download Deployment Files
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-files
+
       # 1. Configure AWS Credentials
       - name: 🔑 Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v5.1.1
@@ -80,30 +87,39 @@ jobs:
 
       # 2. Login to ECR
       - name: 🔓 Login to Amazon ECR
+      
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      # 3. Pull & Run (Agregué el nombre que faltaba)
-      - name: ⬇️ Pull & Restart Container
+      # 3. Pull & Run
+      - name: ⬇️ Pull & Update Services
         env:
           ECR_REGISTRY: ${{ needs.build-and-push.outputs.registry }}
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          # Secrets Injection
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          PORT: ${{ secrets.PORT }}
         run: |
-          echo "⬇️ Pulling latest image..."
-          docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "⚙️ Setting up environment variables..."
+          export WHATSAPP_BOT_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY"
+          export WHATSAPP_BOT_TAG="$IMAGE_TAG"
+          export POSTGRES_USER="$POSTGRES_USER"
+          export POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
+          export POSTGRES_DB="$POSTGRES_DB"
+          export PORT="${PORT}"
 
-          echo "🛑 Stopping old container..."
-          docker stop whatsapp-bot || true
-          docker rm whatsapp-bot || true
+          echo "⬇️ Pulling new image..."
+          docker compose -f docker-compose.prod.yml pull
 
-          echo "🚀 Starting new container..."
-          docker run -d \
-            --name whatsapp-bot \
-            --restart always \
-            -p 3000:3000 \
-            $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "🚀 Updating services...F"
+          docker compose -f docker-compose.prod.yml up -d
 
-          echo "🧹 Cleaning up..."
+      - name: 🧹 Cleanup
+        if: always()
+        run: |
           docker image prune -f
-
-          echo "✅ Deployment completed successfully!"
+          # Opcional: Borrar el archivo compose descargado para dejar la carpeta limpia
+          rm -f docker-compose.prod.yml

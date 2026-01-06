@@ -7,6 +7,7 @@ interface EnvVars {
   WHATSAPP_API_ACCESS_TOKEN: string;
   WHATSAPP_API_PHONE_NUMBER_ID: string;
   WHATSAPP_API_VERIFY_TOKEN: string;
+  DATABASE_URL: string;
 }
 
 const envsSchema = joi
@@ -16,6 +17,7 @@ const envsSchema = joi
     WHATSAPP_API_ACCESS_TOKEN: joi.string().required(),
     WHATSAPP_API_PHONE_NUMBER_ID: joi.string().required(),
     WHATSAPP_API_VERIFY_TOKEN: joi.string().required(),
+    DATABASE_URL: joi.string().uri().required(),
   })
   .unknown(true);
 
@@ -34,5 +36,8 @@ export const envs = Object.freeze({
     accessToken: envVars.WHATSAPP_API_ACCESS_TOKEN,
     phoneNumberId: envVars.WHATSAPP_API_PHONE_NUMBER_ID,
     verifyToken: envVars.WHATSAPP_API_VERIFY_TOKEN,
+  },
+  database: {
+    url: envVars.DATABASE_URL,
   },
 });
