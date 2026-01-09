@@ -25,44 +25,72 @@ export class BotService {
 
   constructor(private readonly whatsappService: WhatsappService) {}
 
-  async handleMessage(from: string, message: string) {
+  async handleMessage(
+    from: string,
+    message: string,
+    accessToken: string,
+    senderPhoneNumberId: string,
+  ) {
     const currentState =
       this.userStates.get(from) || CONVERSATION_STATE.INITIAL;
 
     switch (currentState) {
       case CONVERSATION_STATE.INITIAL:
-        await this.handleInitialFlow(from);
+        await this.handleInitialFlow(from, accessToken, senderPhoneNumberId);
         break;
       case CONVERSATION_STATE.AWAITING_FOR_DNI:
-        await this.handleDniFlow(from, message);
+        await this.handleDniFlow(
+          from,
+          message,
+          accessToken,
+          senderPhoneNumberId,
+        );
         break;
       default:
         this.userStates.delete(from);
     }
   }
 
-  private async handleInitialFlow(from: string) {
+  private async handleInitialFlow(
+    from: string,
+    accessToken: string,
+    senderPhoneNumberId: string,
+  ) {
     const reply =
       '👋 ¡Hola! Bienvenido al sistema de consultas médicas.\n\nPor favor, escribe el número de tu *Documento de Identidad* para verificar si tienes citas agendadas.';
 
-    await this.whatsappService.sendTextMessage({
-      to: from,
-      body: reply,
-    });
+    await this.whatsappService.sendTextMessage(
+      {
+        to: from,
+        body: reply,
+      },
+      accessToken,
+      senderPhoneNumberId,
+    );
 
     this.userStates.set(from, CONVERSATION_STATE.AWAITING_FOR_DNI);
   }
 
-  private async handleDniFlow(from: string, input: string) {
+  private async handleDniFlow(
+    from: string,
+    input: string,
+    accessToken: string,
+    senderPhoneNumberId: string,
+  ) {
     const match = input.match(/\b\d{7,8}\b/);
 
     if (!match) {
-      await this.whatsappService.sendTextMessage({
-        to: from,
-        body: '❌ El formato de tu documento de identidad no es correcto. Por favor, ingresa un número de 7 u 8 dígitos.',
-      });
+      await this.whatsappService.sendTextMessage(
+        {
+          to: from,
+          body: '❌ El formato de tu documento de identidad no es correcto. Por favor, ingresa un número de 7 u 8 dígitos.',
+        },
+        accessToken,
+        senderPhoneNumberId,
+      );
       return;
     }
+
     let reply = '';
     const dni = match[0];
     const appointment = MOCKUP_APPOINTMENTS[dni];
@@ -80,10 +108,14 @@ export class BotService {
         'ℹ️ No se encontraron citas médicas asociadas a ese Documento de Identidad.';
     }
 
-    await this.whatsappService.sendTextMessage({
-      to: from,
-      body: reply,
-    });
+    await this.whatsappService.sendTextMessage(
+      {
+        to: from,
+        body: reply,
+      },
+      accessToken,
+      senderPhoneNumberId,
+    );
 
     this.userStates.delete(from);
   }

@@ -3,6 +3,7 @@ import { HttpService } from '@nestjs/axios';
 import { SendTextMessageDto } from './dto/send-text-message.dto';
 import { MESSAGE_TYPE, MESSAGING_PRODUCT } from '../common/enums/whatsapp.enum';
 import { lastValueFrom } from 'rxjs';
+import { envs } from 'src/config';
 
 @Injectable()
 export class WhatsappService {
@@ -13,7 +14,11 @@ export class WhatsappService {
    * @param sendTextMessageDto
    * @returns Response from Meta API
    */
-  async sendTextMessage(sendTextMessageDto: SendTextMessageDto) {
+  async sendTextMessage(
+    sendTextMessageDto: SendTextMessageDto,
+    accessToken: string,
+    senderPhoneNumberId: string,
+  ) {
     const payload = {
       messaging_product: MESSAGING_PRODUCT.WHATSAPP,
       to: sendTextMessageDto.to,
@@ -24,7 +29,7 @@ export class WhatsappService {
       },
     };
 
-    return this.sendToMeta(payload);
+    return this.sendToMeta(payload, accessToken, senderPhoneNumberId);
   }
 
   // TODO: Send media message
@@ -44,10 +49,22 @@ export class WhatsappService {
    * @param payload
    * @returns Response from Meta API
    */
-  private async sendToMeta(payload: any) {
+  private async sendToMeta(
+    payload: any,
+    accessToken: string,
+    senderPhoneNumberId: string,
+  ) {
+    const { version } = envs.whatsappCloudApi;
+    const BASE_URL = `https://graph.facebook.com/${version}/${senderPhoneNumberId}`;
+
     try {
       const { data } = await lastValueFrom(
-        this.httpService.post('messages', payload),
+        this.httpService.post(`${BASE_URL}/messages`, payload, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }),
       );
       return data;
     } catch (error) {

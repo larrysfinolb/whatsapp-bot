@@ -1,63 +1,86 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { VerifyWebhookDto } from './dto/verify-webhook.dto';
 import { envs } from 'src/config';
 import { BotService } from 'src/bot/bot.service';
 import { HandleIncomingWebhookDto } from './dto/handle-incoming-webhook';
 import { MESSAGE_TYPE } from 'src/common/enums/whatsapp.enum';
+import { ERROR_CODES } from 'src/common/enums/error-codes.enum';
+import { WhatsappConfigService } from 'src/whatsapp-config/whatsapp-config.service';
 
 @Injectable()
 export class WebhookService {
-  constructor(private readonly botService: BotService) {}
+  constructor(
+    private readonly botService: BotService,
+    private readonly whatsappConfigService: WhatsappConfigService,
+  ) {}
 
   verifyWebhook(verifyWebhookDto: VerifyWebhookDto) {
-    const mode = verifyWebhookDto.mode;
-    const verifyToken = verifyWebhookDto.verifyToken;
-    const challenge = verifyWebhookDto.challenge;
-
+    const { mode, verifyToken, challenge } = verifyWebhookDto;
     const myVerifyToken = envs.whatsappCloudApi.verifyToken;
 
-    if (!mode || !verifyToken) {
-      throw new Error('Missing mode or verifyToken');
+    if (!mode || !verifyToken || !challenge) {
+      throw new BadRequestException({
+        message: 'Missing mode, verifyToken or challenge in the request',
+        code: ERROR_CODES.VALIDATION_ERROR,
+      });
     }
 
     if (mode === 'subscribe' && verifyToken === myVerifyToken) {
       // TODO: Cambiar este log por un logger adecuado
       console.log('Webhook verified successfully');
-
       return challenge;
     } else {
       // TODO: Cambiar este log por un logger adecuado
       console.log('Webhook verification failed. Token received:', verifyToken);
-      throw new ForbiddenException('Token verification failed');
+      throw new ForbiddenException({
+        message: 'Invalid verify token',
+        code: ERROR_CODES.AUTH_INVALID_TOKEN,
+      });
     }
   }
 
   async handleIncomingWebhook(
     handleIncomingWebhookDto: HandleIncomingWebhookDto,
   ) {
+    const entries = handleIncomingWebhookDto.entry;
+
     try {
-      const entry = handleIncomingWebhookDto.entry?.[0];
-      const changes = entry?.changes?.[0];
-      const value = changes?.value;
+      for (const entry of entries) {
+        const changes = entry.changes;
+        for (const change of changes) {
+          const value = change.value;
+          if (!value || !value.messages) continue;
 
-      if (!value?.messages) {
-        return;
-      }
+          const businessPhoneNumberId = value.metadata?.phone_number_id;
+          if (!businessPhoneNumberId) continue;
 
-      const message = value.messages[0];
-      const from = message.from;
+          const whatsappConfig =
+            await this.whatsappConfigService.findOnePhoneNumberId(
+              businessPhoneNumberId,
+            );
+          if (!whatsappConfig) continue;
 
-      if (message.type === MESSAGE_TYPE.TEXT) {
-        const body = message.text?.body;
+          const messages = value.messages;
+          for (const message of messages) {
+            if (message.type === MESSAGE_TYPE.TEXT) {
+              const from = message.from;
+              const body = message.text?.body;
 
-        if (!body) {
-          console.log(
-            `Received message from ${from} of type TEXT but with no content.`,
-          );
-          return;
+              if (!from || !body) continue;
+
+              await this.botService.handleMessage(
+                from,
+                body,
+                whatsappConfig.accessToken,
+                businessPhoneNumberId,
+              );
+            }
+          }
         }
-
-        await this.botService.handleMessage(from, body);
       }
     } catch (error) {
       // TODO: Cambiar este log por un logger adecuado
