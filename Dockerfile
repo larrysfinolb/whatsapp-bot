@@ -13,6 +13,7 @@ RUN npm ci
 
 # Copy source code and build the application
 COPY . .
+RUN npx prisma generate
 RUN npm run build
 
 # ------------------------------------------------------------------------------
@@ -32,6 +33,9 @@ RUN npm ci --only=production && npm cache clean --force
 
 # Copy built artifacts from the builder stage
 COPY --from=builder /app/dist ./dist
+
+# Copy Prisma schema and generated client
+COPY --from=builder /app/prisma ./prisma
 
 # Security: Run as non-root user
 USER node

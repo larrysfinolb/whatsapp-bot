@@ -16,19 +16,30 @@ services:
         limits:
           memory: 512M
 
+  prisma-migrator:
+    image: ${WHATSAPP_BOT_IMAGE}:${WHATSAPP_BOT_TAG}
+    container_name: prisma-migrator
+    depends_on:
+      - postgresql-db
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql-db:5432/${POSTGRES_DB}?schema=public
+    command: ["sh", "-c", "npx", "prisma", "migrate", "deploy"]
+
   whatsapp-bot:
     image: ${WHATSAPP_BOT_IMAGE}:${WHATSAPP_BOT_TAG}
     container_name: whatsapp-bot
     restart: always
     depends_on:
-      - postgresql-db
+      postgresql-db:
+        condition: service_started
+      prisma-migrator:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql-db:5432/${POSTGRES_DB}?schema=public
       PORT: ${PORT}
       NODE_ENV: production
     ports:
       - "${PORT}:${PORT}"
-    command: ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
 
 volumes:
   pgdata:
