@@ -87,7 +87,7 @@ jobs:
 
       # 2. Login to ECR
       - name: 🔓 Login to Amazon ECR
-      
+
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
@@ -102,6 +102,7 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
           PORT: ${{ secrets.PORT }}
+          PROJECT_NAME: whatsapp-bot
         run: |
           echo "⚙️ Setting up environment variables..."
           export WHATSAPP_BOT_IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY"
@@ -112,10 +113,13 @@ jobs:
           export PORT="${PORT}"
 
           echo "⬇️ Pulling new image..."
-          docker compose -f docker-compose.prod.yml pull
+          docker compose -p $PROJECT_NAME -f docker-compose.prod.yml pull
 
-          echo "🚀 Updating services...F"
-          docker compose -f docker-compose.prod.yml up -d
+          echo "🛑 Stopping old stack (gracefully)..."
+          docker compose -p $PROJECT_NAME -f docker-compose.prod.yml down --remove-orphans || true
+
+          echo "🚀 Starting new stack..."
+          docker compose -p $PROJECT_NAME -f docker-compose.prod.yml up -d --force-recreate
 
       - name: 🧹 Cleanup
         if: always()
