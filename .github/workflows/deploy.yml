@@ -128,6 +128,7 @@ jobs:
       - name: 🧹 Cleanup
         if: always()
         run: |
-          docker image prune -f
-          # Opcional: Borrar el archivo compose descargado para dejar la carpeta limpia
+          echo "🧹 Cleaning up unused Docker resources..."
+          docker image prune -f          
+          docker builder prune -f
           rm -f docker-compose.prod.yml
