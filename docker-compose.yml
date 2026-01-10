@@ -3,7 +3,6 @@ name: WhatsApp Bot Local Environment
 services:
   postgresql-db:
     image: postgres:18-alpine
-    container_name: whatsapp-bot-db
     restart: always
     environment:
       POSTGRES_USER: root

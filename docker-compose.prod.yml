@@ -3,7 +3,6 @@ name: WhatsApp Bot Production Environment
 services:
   postgresql-db:
     image: postgres:18-alpine
-    container_name: whatsapp-bot-db
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -18,7 +17,6 @@ services:
 
   prisma-migrator:
     image: ${WHATSAPP_BOT_IMAGE}:${WHATSAPP_BOT_TAG}
-    container_name: prisma-migrator
     depends_on:
       - postgresql-db
     environment:
@@ -27,7 +25,6 @@ services:
 
   whatsapp-bot:
     image: ${WHATSAPP_BOT_IMAGE}:${WHATSAPP_BOT_TAG}
-    container_name: whatsapp-bot
     restart: always
     depends_on:
       postgresql-db:
