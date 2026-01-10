@@ -34,6 +34,8 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql-db:5432/${POSTGRES_DB}?schema=public
       PORT: ${PORT}
+      WHATSAPP_API_VERSION: ${WHATSAPP_API_VERSION}
+      WHATSAPP_API_VERIFY_TOKEN: ${WHATSAPP_API_VERIFY_TOKEN}
       NODE_ENV: production
     ports:
       - "${PORT}:${PORT}"

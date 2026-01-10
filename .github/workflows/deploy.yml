@@ -102,6 +102,8 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
           PORT: ${{ secrets.PORT }}
+          WHATSAPP_API_VERSION: ${{ secrets.WHATSAPP_API_VERSION }}
+          WHATSAPP_API_VERIFY_TOKEN: ${{ secrets.WHATSAPP_API_VERIFY_TOKEN }}
           PROJECT_NAME: whatsapp-bot
         run: |
           echo "⚙️ Setting up environment variables..."
@@ -111,6 +113,8 @@ jobs:
           export POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
           export POSTGRES_DB="$POSTGRES_DB"
           export PORT="${PORT}"
+          export WHATSAPP_API_VERSION="$WHATSAPP_API_VERSION"
+          export WHATSAPP_API_VERIFY_TOKEN="$WHATSAPP_API_VERIFY_TOKEN"
 
           echo "⬇️ Pulling new image..."
           docker compose -p $PROJECT_NAME -f docker-compose.prod.yml pull
